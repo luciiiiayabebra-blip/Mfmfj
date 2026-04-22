@@ -22,6 +22,8 @@ public class RwsConfig {
     public String balanceRegex = "Баланс:\\s*([\\d\\s]+(?:[.,]\\d+)?)";
     public String loginPromptRegex = "Авторизация.*/login";
     public int worldChangeTimeoutMs = 30000;
+    public int balanceTimeoutMs = 5000;
+    public int balanceRetries = 3;
     public int maxGunpowderClicks = 1000;
 
     public List<AccountEntry> accounts = new ArrayList<>();

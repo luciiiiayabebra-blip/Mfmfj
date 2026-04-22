@@ -16,6 +16,8 @@
   "rws.config.general.limitRegex": "Regex триггера лимита",
   "rws.config.general.balanceRegex": "Regex баланса",
   "rws.config.general.worldTimeout": "Таймаут смены мира (мс)",
+  "rws.config.general.balanceTimeout": "Таймаут ответа /balance (мс)",
+  "rws.config.general.balanceRetries": "Повторов /balance",
   "rws.config.general.maxClicks": "Макс. кликов по пороху",
 
   "rws.config.accounts.list": "Список аккаунтов",

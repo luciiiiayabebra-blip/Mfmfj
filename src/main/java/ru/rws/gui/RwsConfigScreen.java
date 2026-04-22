@@ -55,6 +55,12 @@ public final class RwsConfigScreen {
         general.addEntry(eb.startIntSlider(new TranslatableText("rws.config.general.worldTimeout"), cfg.worldChangeTimeoutMs, 5000, 120000)
                 .setDefaultValue(30000)
                 .setSaveConsumer(v -> cfg.worldChangeTimeoutMs = v).build());
+        general.addEntry(eb.startIntSlider(new TranslatableText("rws.config.general.balanceTimeout"), cfg.balanceTimeoutMs, 1000, 30000)
+                .setDefaultValue(5000)
+                .setSaveConsumer(v -> cfg.balanceTimeoutMs = v).build());
+        general.addEntry(eb.startIntSlider(new TranslatableText("rws.config.general.balanceRetries"), cfg.balanceRetries, 1, 10)
+                .setDefaultValue(3)
+                .setSaveConsumer(v -> cfg.balanceRetries = v).build());
         general.addEntry(eb.startIntSlider(new TranslatableText("rws.config.general.maxClicks"), cfg.maxGunpowderClicks, 1, 5000)
                 .setDefaultValue(1000)
                 .setSaveConsumer(v -> cfg.maxGunpowderClicks = v).build());

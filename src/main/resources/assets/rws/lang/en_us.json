@@ -16,6 +16,8 @@
   "rws.config.general.limitRegex": "Limit trigger regex",
   "rws.config.general.balanceRegex": "Balance regex",
   "rws.config.general.worldTimeout": "World change timeout (ms)",
+  "rws.config.general.balanceTimeout": "/balance response timeout (ms)",
+  "rws.config.general.balanceRetries": "/balance retries",
   "rws.config.general.maxClicks": "Max gunpowder clicks",
 
   "rws.config.accounts.list": "Accounts list",

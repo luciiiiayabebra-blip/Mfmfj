@@ -670,36 +670,55 @@ public final class AutomationEngine {
     }
 
     private long queryBalance(RwsConfig cfg) throws Exception {
-        Pattern balancePattern = Pattern.compile(cfg.balanceRegex);
-        final AtomicReference<Long> result = new AtomicReference<>(-1L);
-        final CompletableFuture<Long> fut = new CompletableFuture<>();
-        Consumer<String> chatL = msg -> {
-            Matcher m = balancePattern.matcher(msg);
-            if (m.find()) {
-                try {
-                    String raw = m.group(1).replaceAll("\\s+", "").replace(',', '.');
-                    double val = Double.parseDouble(raw);
-                    long amount = (long) Math.floor(val);
-                    result.set(amount);
-                    fut.complete(amount);
-                } catch (Throwable ignored) {
-                }
-            }
-        };
-        ChatListener.register(chatL);
+        Pattern balancePattern;
         try {
-            sendChat("/balance");
-            try {
-                fut.get(3000, TimeUnit.MILLISECONDS);
-            } catch (TimeoutException te) {
-                LogBuffer.get().warn("Баланс не пришёл в чат за 3сек");
-                return -1L;
-            } catch (Exception ignored) {
-            }
-            return result.get();
-        } finally {
-            ChatListener.unregister(chatL);
+            balancePattern = Pattern.compile(cfg.balanceRegex);
+        } catch (Throwable t) {
+            LogBuffer.get().error("Неверный regex баланса: " + cfg.balanceRegex);
+            return -1L;
         }
+
+        int retries = Math.max(1, cfg.balanceRetries);
+        int timeout = Math.max(1000, cfg.balanceTimeoutMs);
+
+        for (int attempt = 1; attempt <= retries; attempt++) {
+            final AtomicReference<Long> result = new AtomicReference<>(-1L);
+            final CompletableFuture<Long> fut = new CompletableFuture<>();
+            final Pattern pat = balancePattern;
+            Consumer<String> chatL = msg -> {
+                LogBuffer.get().info("chat: " + msg);
+                Matcher m = pat.matcher(msg);
+                if (m.find()) {
+                    try {
+                        String raw = m.group(1).replaceAll("\\s+", "").replace(',', '.');
+                        double val = Double.parseDouble(raw);
+                        long amount = (long) Math.floor(val);
+                        result.set(amount);
+                        fut.complete(amount);
+                    } catch (Throwable ex) {
+                        LogBuffer.get().warn("Не удалось распарсить '" + m.group(1) + "': " + ex.getMessage());
+                    }
+                }
+            };
+            ChatListener.register(chatL);
+            try {
+                LogBuffer.get().info("Запрос баланса, попытка " + attempt + "/" + retries);
+                sendChat("/balance");
+                try {
+                    Long r = fut.get(timeout, TimeUnit.MILLISECONDS);
+                    return r != null ? r : -1L;
+                } catch (TimeoutException te) {
+                    LogBuffer.get().warn("Баланс не пришёл за " + timeout + "мс (попытка " + attempt + ")");
+                } catch (Exception ignored) {
+                }
+            } finally {
+                ChatListener.unregister(chatL);
+            }
+            if (attempt < retries) {
+                sleep(500);
+            }
+        }
+        return -1L;
     }
 
     public void sendChat(String msg) {
