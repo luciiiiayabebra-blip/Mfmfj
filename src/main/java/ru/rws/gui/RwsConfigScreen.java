@@ -34,18 +34,24 @@ public final class RwsConfigScreen {
         general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.serverIp"), cfg.serverIp)
                 .setDefaultValue("ru.reallyworld.me")
                 .setSaveConsumer(v -> cfg.serverIp = v).build());
-        general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.commonCommand"), cfg.commonCommand)
+        general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.tpaTarget"), cfg.tpaTarget)
                 .setDefaultValue("")
-                .setSaveConsumer(v -> cfg.commonCommand = v).build());
+                .setSaveConsumer(v -> cfg.tpaTarget = v).build());
         general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.payReceiver"), cfg.payReceiver)
                 .setDefaultValue("")
                 .setSaveConsumer(v -> cfg.payReceiver = v).build());
+        general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.loginRegex"), cfg.loginPromptRegex)
+                .setDefaultValue("Авторизация.*/login")
+                .setSaveConsumer(v -> cfg.loginPromptRegex = v).build());
         general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.limitRegex"), cfg.limitTriggerRegex)
                 .setDefaultValue("Работы.*Достигнут лимит")
                 .setSaveConsumer(v -> cfg.limitTriggerRegex = v).build());
         general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.balanceRegex"), cfg.balanceRegex)
                 .setDefaultValue("Баланс:\\s*([\\d\\s]+(?:[.,]\\d+)?)")
                 .setSaveConsumer(v -> cfg.balanceRegex = v).build());
+        general.addEntry(eb.startIntField(new TranslatableText("rws.config.general.mapSlotId"), cfg.mapSlotId)
+                .setDefaultValue(4)
+                .setSaveConsumer(v -> cfg.mapSlotId = v).build());
         general.addEntry(eb.startIntSlider(new TranslatableText("rws.config.general.worldTimeout"), cfg.worldChangeTimeoutMs, 5000, 120000)
                 .setDefaultValue(30000)
                 .setSaveConsumer(v -> cfg.worldChangeTimeoutMs = v).build());

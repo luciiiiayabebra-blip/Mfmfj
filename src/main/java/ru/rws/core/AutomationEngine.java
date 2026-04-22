@@ -154,30 +154,23 @@ public final class AutomationEngine {
         ProxyConnector.setProxy(acc.proxy);
         connectToServer(cfg.serverIp);
 
-        setStep(4, "Ожидание смены мира");
+        setStep(5, "Ожидание запроса /login в чате");
         checkPause();
-        if (!awaitWorldChange(cfg.worldChangeTimeoutMs)) {
-            LogBuffer.get().warn("Таймаут ожидания мира -> пропуск");
+        if (!awaitChatMatch(cfg.loginPromptRegex, cfg.worldChangeTimeoutMs)) {
+            LogBuffer.get().warn("Запрос /login не пришёл -> пропуск");
             return;
         }
-
-        setStep(5, "/login <пароль>");
-        checkPause();
-        sleep(800);
+        sleep(500);
         sendChat("/login " + acc.password);
 
-        setStep(6, "Ожидание смены мира");
+        setStep(7, "Ожидание компаса в хотбаре");
         checkPause();
-        if (!awaitWorldChange(cfg.worldChangeTimeoutMs)) {
-            LogBuffer.get().warn("Таймаут после /login -> пропуск");
+        if (!awaitCompassInHotbar(cfg.worldChangeTimeoutMs)) {
+            LogBuffer.get().warn("Компас не появился в хотбаре -> пропуск");
             return;
         }
-
-        setStep(7, "Взять компас и ПКМ");
-        checkPause();
-        sleep(1500);
         if (!useCompass()) {
-            LogBuffer.get().warn("Компас не найден -> пропуск");
+            LogBuffer.get().warn("Не удалось использовать компас -> пропуск");
             return;
         }
 
@@ -195,29 +188,22 @@ public final class AutomationEngine {
         setStep(9, "Пауза 1 сек");
         sleep(1000);
 
-        setStep(10, "Клик по 3-й голове");
+        setStep(10, "Клик по слоту #" + cfg.mapSlotId + " до смены мира");
         checkPause();
         if (!awaitHandledScreen(5000)) {
-            LogBuffer.get().warn("GUI с головами не открылся");
+            LogBuffer.get().warn("GUI с картой миров не открылся");
             return;
         }
-        if (!clickNthItem(Items.PLAYER_HEAD, 3)) {
-            LogBuffer.get().warn("3-я голова не найдена");
-            return;
-        }
-
-        setStep(11, "Ожидание смены мира");
-        checkPause();
-        if (!awaitWorldChange(cfg.worldChangeTimeoutMs)) {
-            LogBuffer.get().warn("Таймаут после головы -> пропуск");
+        if (!clickSlotUntilWorldChange(cfg.mapSlotId, cfg.worldChangeTimeoutMs)) {
+            LogBuffer.get().warn("Смена мира после кликов не произошла -> пропуск");
             return;
         }
 
-        setStep(12, "Команда: " + cfg.commonCommand);
+        setStep(12, "/tpa " + cfg.tpaTarget);
         checkPause();
         sleep(1500);
-        if (cfg.commonCommand != null && !cfg.commonCommand.isEmpty()) {
-            sendChat(cfg.commonCommand);
+        if (cfg.tpaTarget != null && !cfg.tpaTarget.isEmpty()) {
+            sendChat("/tpa " + cfg.tpaTarget);
         }
 
         setStep(13, "Пауза 5 сек");
@@ -337,6 +323,92 @@ public final class AutomationEngine {
                 }
             }
             return false;
+        } finally {
+            WorldChangeListener.unregister(listener);
+        }
+    }
+
+    private boolean awaitChatMatch(String regex, int timeoutMs) throws InterruptedException {
+        final Pattern p;
+        try {
+            p = Pattern.compile(regex);
+        } catch (Throwable t) {
+            LogBuffer.get().error("Неверный regex: " + regex);
+            return false;
+        }
+        final CompletableFuture<Void> fut = new CompletableFuture<>();
+        Consumer<String> listener = msg -> {
+            if (p.matcher(msg).find()) {
+                fut.complete(null);
+            }
+        };
+        ChatListener.register(listener);
+        try {
+            long end = System.currentTimeMillis() + timeoutMs;
+            while (System.currentTimeMillis() < end) {
+                checkPause();
+                if (fut.isDone()) return true;
+                try {
+                    fut.get(200, TimeUnit.MILLISECONDS);
+                    return true;
+                } catch (TimeoutException ignored) {
+                } catch (Exception e) {
+                    return false;
+                }
+            }
+            return false;
+        } finally {
+            ChatListener.unregister(listener);
+        }
+    }
+
+    private boolean awaitCompassInHotbar(int timeoutMs) throws InterruptedException {
+        long end = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < end) {
+            checkPause();
+            try {
+                Boolean has = callOnClient(() -> {
+                    MinecraftClient mc = MinecraftClient.getInstance();
+                    ClientPlayerEntity p = mc.player;
+                    if (p == null) return false;
+                    for (int i = 0; i < 9; i++) {
+                        if (p.inventory.getStack(i).getItem() == Items.COMPASS) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                if (Boolean.TRUE.equals(has)) return true;
+            } catch (Exception ignored) {
+            }
+            Thread.sleep(250);
+        }
+        return false;
+    }
+
+    private boolean clickSlotUntilWorldChange(int slotId, int timeoutMs) throws Exception {
+        final CompletableFuture<Void> fut = new CompletableFuture<>();
+        WorldChangeListener.Listener listener = () -> fut.complete(null);
+        WorldChangeListener.register(listener);
+        try {
+            long end = System.currentTimeMillis() + timeoutMs;
+            while (System.currentTimeMillis() < end && !fut.isDone()) {
+                checkPause();
+                callOnClient(() -> {
+                    MinecraftClient mc = MinecraftClient.getInstance();
+                    ClientPlayerEntity p = mc.player;
+                    if (p == null || mc.interactionManager == null) return false;
+                    Screen s = mc.currentScreen;
+                    if (!(s instanceof HandledScreen)) return false;
+                    HandledScreen<?> hs = (HandledScreen<?>) s;
+                    ScreenHandler handler = hs.getScreenHandler();
+                    if (slotId < 0 || slotId >= handler.slots.size()) return false;
+                    mc.interactionManager.clickSlot(handler.syncId, slotId, 0, SlotActionType.PICKUP, p);
+                    return true;
+                });
+                Thread.sleep(400);
+            }
+            return fut.isDone();
         } finally {
             WorldChangeListener.unregister(listener);
         }

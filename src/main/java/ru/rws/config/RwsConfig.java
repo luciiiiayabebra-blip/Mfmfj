@@ -15,10 +15,12 @@ public class RwsConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public String serverIp = "ru.reallyworld.me";
-    public String commonCommand = "";
+    public String tpaTarget = "";
     public String payReceiver = "";
     public String limitTriggerRegex = "Работы.*Достигнут лимит";
     public String balanceRegex = "Баланс:\\s*([\\d\\s]+(?:[.,]\\d+)?)";
+    public String loginPromptRegex = "Авторизация.*/login";
+    public int mapSlotId = 4;
     public int worldChangeTimeoutMs = 30000;
     public int maxGunpowderClicks = 1000;
 
