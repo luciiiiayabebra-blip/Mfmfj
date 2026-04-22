@@ -20,6 +20,13 @@
   "rws.config.general.balanceRetries": "/balance retries",
   "rws.config.general.maxClicks": "Max gunpowder clicks",
 
+  "rws.config.commonProxy.enabled": "Common proxy — enabled",
+  "rws.config.commonProxy.type": "Common proxy — type",
+  "rws.config.commonProxy.host": "Common proxy — host",
+  "rws.config.commonProxy.port": "Common proxy — port",
+  "rws.config.commonProxy.user": "Common proxy — user",
+  "rws.config.commonProxy.pass": "Common proxy — password",
+
   "rws.config.accounts.list": "Accounts list",
   "rws.config.account.nickname": "Nickname",
   "rws.config.account.password": "Password",

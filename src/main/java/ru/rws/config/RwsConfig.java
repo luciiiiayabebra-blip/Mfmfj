@@ -18,6 +18,7 @@ public class RwsConfig {
     public String commonPassword = "";
     public String tpaTarget = "";
     public String payReceiver = "";
+    public ProxyEntry commonProxy = new ProxyEntry();
     public String limitTriggerRegex = "Работы.*Достигнут лимит";
     public String balanceRegex = "Баланс:\\s*([\\d\\s]+(?:[.,]\\d+)?)";
     public String loginPromptRegex = "Авторизация.*/login";

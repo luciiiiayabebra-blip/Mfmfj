@@ -20,6 +20,13 @@
   "rws.config.general.balanceRetries": "Повторов /balance",
   "rws.config.general.maxClicks": "Макс. кликов по пороху",
 
+  "rws.config.commonProxy.enabled": "Общий прокси — включён",
+  "rws.config.commonProxy.type": "Общий прокси — тип",
+  "rws.config.commonProxy.host": "Общий прокси — хост",
+  "rws.config.commonProxy.port": "Общий прокси — порт",
+  "rws.config.commonProxy.user": "Общий прокси — логин",
+  "rws.config.commonProxy.pass": "Общий прокси — пароль",
+
   "rws.config.accounts.list": "Список аккаунтов",
   "rws.config.account.nickname": "Никнейм",
   "rws.config.account.password": "Пароль",

@@ -14,6 +14,7 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import ru.rws.config.AccountEntry;
+import ru.rws.config.ProxyEntry;
 import ru.rws.config.RwsConfig;
 import ru.rws.events.ChatListener;
 import ru.rws.events.WorldChangeListener;
@@ -161,7 +162,12 @@ public final class AutomationEngine {
 
             setStep(3, "Подключение к " + cfg.serverIp);
             checkPause();
-            ProxyConnector.setProxy(acc.proxy);
+            ProxyEntry proxyToUse = (acc.proxy != null && acc.proxy.enabled) ? acc.proxy : cfg.commonProxy;
+            if (proxyToUse != null && proxyToUse.enabled) {
+                LogBuffer.get().info("Прокси: " + proxyToUse.type + " " + proxyToUse.host + ":" + proxyToUse.port
+                        + (acc.proxy != null && acc.proxy.enabled ? " (аккаунта)" : " (общий)"));
+            }
+            ProxyConnector.setProxy(proxyToUse);
             connectToServer(cfg.serverIp);
 
             compassShortcutArmed = true;

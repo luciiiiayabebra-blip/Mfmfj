@@ -65,6 +65,28 @@ public final class RwsConfigScreen {
                 .setDefaultValue(1000)
                 .setSaveConsumer(v -> cfg.maxGunpowderClicks = v).build());
 
+        if (cfg.commonProxy == null) cfg.commonProxy = new ProxyEntry();
+        final ProxyEntry cp = cfg.commonProxy;
+        general.addEntry(eb.startBooleanToggle(new TranslatableText("rws.config.commonProxy.enabled"), cp.enabled)
+                .setTooltip(new LiteralText("Если у аккаунта прокси выключен — используется этот"))
+                .setDefaultValue(false)
+                .setSaveConsumer(v -> cp.enabled = v).build());
+        general.addEntry(eb.startEnumSelector(new TranslatableText("rws.config.commonProxy.type"), ProxyEntry.Type.class, cp.type)
+                .setDefaultValue(ProxyEntry.Type.SOCKS5)
+                .setSaveConsumer(v -> cp.type = v).build());
+        general.addEntry(eb.startStrField(new TranslatableText("rws.config.commonProxy.host"), cp.host)
+                .setDefaultValue("")
+                .setSaveConsumer(v -> cp.host = v).build());
+        general.addEntry(eb.startIntField(new TranslatableText("rws.config.commonProxy.port"), cp.port)
+                .setDefaultValue(1080)
+                .setSaveConsumer(v -> cp.port = v).build());
+        general.addEntry(eb.startStrField(new TranslatableText("rws.config.commonProxy.user"), cp.username)
+                .setDefaultValue("")
+                .setSaveConsumer(v -> cp.username = v).build());
+        general.addEntry(eb.startStrField(new TranslatableText("rws.config.commonProxy.pass"), cp.password)
+                .setDefaultValue("")
+                .setSaveConsumer(v -> cp.password = v).build());
+
         ConfigCategory accounts = builder.getOrCreateCategory(new TranslatableText("rws.config.category.accounts"));
         accounts.addEntry(eb.startStrList(new TranslatableText("rws.config.accounts.list"), accountsToLines(cfg))
                 .setTooltip(new LiteralText("Одна строка = один аккаунт.\nФормат: nick|SOCKS5|host|port|user|pass|enabled\nПароль общий (см. вкладку \"Общие\")"))
