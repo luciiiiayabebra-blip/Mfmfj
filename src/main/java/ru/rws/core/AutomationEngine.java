@@ -148,12 +148,12 @@ public final class AutomationEngine {
     }
 
     private void processAccount(AccountEntry acc, RwsConfig cfg) throws Exception {
-        compassShortcutArmed = true;
+        compassShortcutArmed = false;
         try {
             setStep(1, "Дисконнект");
             checkPause();
             disconnectIfOnline();
-            sleep(1000);
+            sleep(1500);
 
             setStep(2, "Смена ника -> " + acc.nickname);
             checkPause();
@@ -164,6 +164,7 @@ public final class AutomationEngine {
             ProxyConnector.setProxy(acc.proxy);
             connectToServer(cfg.serverIp);
 
+            compassShortcutArmed = true;
             setStep(5, "Ожидание /login или компаса в хотбаре");
             checkPause();
             LoginResult lr = awaitLoginOrCompass(cfg.loginPromptRegex, cfg.worldChangeTimeoutMs);
@@ -209,14 +210,14 @@ public final class AutomationEngine {
         setStep(9, "Пауза 1 сек");
         sleep(1000);
 
-        setStep(10, "Клик по слоту #" + cfg.mapSlotId + " до смены мира");
+        setStep(10, "Клик по 3-й голове до смены мира");
         checkPause();
         if (!awaitHandledScreen(5000)) {
-            LogBuffer.get().warn("GUI с картой миров не открылся");
+            LogBuffer.get().warn("GUI с головами не открылся");
             return;
         }
-        if (!clickSlotUntilWorldChange(cfg.mapSlotId, cfg.worldChangeTimeoutMs)) {
-            LogBuffer.get().warn("Смена мира после кликов не произошла -> пропуск");
+        if (!clickNthHeadUntilWorldChange(3, cfg.worldChangeTimeoutMs)) {
+            LogBuffer.get().warn("Смена мира после кликов по голове не произошла -> пропуск");
             return;
         }
 
@@ -315,11 +316,20 @@ public final class AutomationEngine {
     private void connectToServer(String ip) {
         runOnClient(() -> {
             MinecraftClient mc = MinecraftClient.getInstance();
-            ServerInfo info = new ServerInfo("RWS", ip, false);
             try {
-                mc.openScreen(new ConnectScreen(new TitleScreen(), mc, info));
+                String host = ip;
+                int port = 25565;
+                int idx = ip.indexOf(':');
+                if (idx > 0) {
+                    host = ip.substring(0, idx);
+                    try { port = Integer.parseInt(ip.substring(idx + 1)); } catch (Throwable ignored) {}
+                }
+                Screen parent = mc.currentScreen != null ? mc.currentScreen : new TitleScreen();
+                ServerInfo info = new ServerInfo("RWS", ip, false);
+                LogBuffer.get().info("Открываем ConnectScreen → " + host + ":" + port);
+                mc.openScreen(new ConnectScreen(parent, mc, info));
             } catch (Throwable t) {
-                LogBuffer.get().error("Ошибка подключения: " + t.getMessage());
+                LogBuffer.get().error("Ошибка при вызове openScreen(ConnectScreen): " + t.getClass().getSimpleName() + ": " + t.getMessage());
             }
         });
     }
@@ -446,18 +456,18 @@ public final class AutomationEngine {
         return false;
     }
 
-    private boolean clickSlotUntilWorldChange(int slotId, int timeoutMs) throws Exception {
+    private boolean clickNthHeadUntilWorldChange(int n, int timeoutMs) throws Exception {
         final CompletableFuture<Void> fut = new CompletableFuture<>();
         WorldChangeListener.Listener listener = () -> fut.complete(null);
         WorldChangeListener.register(listener);
         try {
             long end = System.currentTimeMillis() + timeoutMs;
             int attempts = 0;
-            int noGuiStreak = 0;
+            int noHeadStreak = 0;
             final int maxAttempts = 40;
-            final int maxNoGuiStreak = 15;
+            final int maxNoHeadStreak = 20;
             while (System.currentTimeMillis() < end && !fut.isDone()
-                    && attempts < maxAttempts && noGuiStreak < maxNoGuiStreak) {
+                    && attempts < maxAttempts && noHeadStreak < maxNoHeadStreak) {
                 checkPause();
                 Boolean ok = callOnClient(() -> {
                     MinecraftClient mc = MinecraftClient.getInstance();
@@ -467,19 +477,35 @@ public final class AutomationEngine {
                     if (!(s instanceof HandledScreen)) return false;
                     HandledScreen<?> hs = (HandledScreen<?>) s;
                     ScreenHandler handler = hs.getScreenHandler();
-                    if (slotId < 0 || slotId >= handler.slots.size()) return false;
-                    mc.interactionManager.clickSlot(handler.syncId, slotId, 0, SlotActionType.PICKUP, p);
-                    return true;
+                    int containerSize = getContainerInventorySize(handler);
+                    int found = 0;
+                    for (int i = 0; i < containerSize; i++) {
+                        Slot slot = handler.slots.get(i);
+                        ItemStack st = slot.getStack();
+                        if (!st.isEmpty() && st.getItem() == Items.PLAYER_HEAD) {
+                            found++;
+                            if (found == n) {
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, p);
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
                 });
                 if (Boolean.TRUE.equals(ok)) {
                     attempts++;
-                    noGuiStreak = 0;
+                    noHeadStreak = 0;
                 } else {
-                    noGuiStreak++;
+                    noHeadStreak++;
                 }
                 Thread.sleep(400);
             }
-            return fut.isDone();
+            if (fut.isDone()) {
+                LogBuffer.get().info("Смена мира после " + attempts + " кликов по " + n + "-й голове");
+                return true;
+            }
+            LogBuffer.get().warn("Кликов: " + attempts + ", пустых попыток: " + noHeadStreak);
+            return false;
         } finally {
             WorldChangeListener.unregister(listener);
         }

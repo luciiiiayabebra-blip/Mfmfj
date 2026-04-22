@@ -52,9 +52,6 @@ public final class RwsConfigScreen {
         general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.balanceRegex"), cfg.balanceRegex)
                 .setDefaultValue("Баланс:\\s*([\\d\\s]+(?:[.,]\\d+)?)")
                 .setSaveConsumer(v -> cfg.balanceRegex = v).build());
-        general.addEntry(eb.startIntField(new TranslatableText("rws.config.general.mapSlotId"), cfg.mapSlotId)
-                .setDefaultValue(4)
-                .setSaveConsumer(v -> cfg.mapSlotId = v).build());
         general.addEntry(eb.startIntSlider(new TranslatableText("rws.config.general.worldTimeout"), cfg.worldChangeTimeoutMs, 5000, 120000)
                 .setDefaultValue(30000)
                 .setSaveConsumer(v -> cfg.worldChangeTimeoutMs = v).build());

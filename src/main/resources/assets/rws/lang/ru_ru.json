@@ -15,7 +15,6 @@
   "rws.config.general.loginRegex": "Regex запроса /login",
   "rws.config.general.limitRegex": "Regex триггера лимита",
   "rws.config.general.balanceRegex": "Regex баланса",
-  "rws.config.general.mapSlotId": "ID слота карты миров",
   "rws.config.general.worldTimeout": "Таймаут смены мира (мс)",
   "rws.config.general.maxClicks": "Макс. кликов по пороху",
 
