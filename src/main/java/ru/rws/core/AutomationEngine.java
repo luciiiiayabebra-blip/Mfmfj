@@ -40,8 +40,13 @@ public final class AutomationEngine {
 
     private final Object pauseLock = new Object();
     private volatile boolean paused = false;
+    private volatile boolean compassShortcutArmed = false;
 
     private Thread worker;
+
+    private static final class CompassReadySignal extends RuntimeException {
+        CompassReadySignal() { super(null, null, false, false); }
+    }
 
     private AutomationEngine() {
     }
@@ -99,6 +104,9 @@ public final class AutomationEngine {
                 pauseLock.wait();
             }
         }
+        if (compassShortcutArmed && hasCompassInHotbar()) {
+            throw new CompassReadySignal();
+        }
     }
 
     private void run() {
@@ -140,37 +148,44 @@ public final class AutomationEngine {
     }
 
     private void processAccount(AccountEntry acc, RwsConfig cfg) throws Exception {
-        setStep(1, "Дисконнект");
-        checkPause();
-        disconnectIfOnline();
-        sleep(1000);
+        compassShortcutArmed = true;
+        try {
+            setStep(1, "Дисконнект");
+            checkPause();
+            disconnectIfOnline();
+            sleep(1000);
 
-        setStep(2, "Смена ника -> " + acc.nickname);
-        checkPause();
-        SessionSwitcher.changeNickname(acc.nickname);
+            setStep(2, "Смена ника -> " + acc.nickname);
+            checkPause();
+            SessionSwitcher.changeNickname(acc.nickname);
 
-        setStep(3, "Подключение к " + cfg.serverIp);
-        checkPause();
-        ProxyConnector.setProxy(acc.proxy);
-        connectToServer(cfg.serverIp);
+            setStep(3, "Подключение к " + cfg.serverIp);
+            checkPause();
+            ProxyConnector.setProxy(acc.proxy);
+            connectToServer(cfg.serverIp);
 
-        setStep(5, "Ожидание /login или компаса в хотбаре");
-        checkPause();
-        LoginResult lr = awaitLoginOrCompass(cfg.loginPromptRegex, cfg.worldChangeTimeoutMs);
-        if (lr == LoginResult.TIMEOUT) {
-            LogBuffer.get().warn("Нет ни запроса /login, ни компаса -> пропуск");
-            return;
-        }
-        if (lr == LoginResult.LOGIN_PROMPT) {
-            sleep(500);
-            sendChat("/login " + cfg.commonPassword);
-            LogBuffer.get().info("Ожидание компаса после /login");
-            if (!awaitCompassInHotbar(cfg.worldChangeTimeoutMs)) {
-                LogBuffer.get().warn("Компас не появился после /login -> пропуск");
+            setStep(5, "Ожидание /login или компаса в хотбаре");
+            checkPause();
+            LoginResult lr = awaitLoginOrCompass(cfg.loginPromptRegex, cfg.worldChangeTimeoutMs);
+            if (lr == LoginResult.TIMEOUT) {
+                LogBuffer.get().warn("Нет ни запроса /login, ни компаса -> пропуск");
                 return;
             }
-        } else {
-            LogBuffer.get().info("Компас уже в хотбаре — /login пропущен");
+            if (lr == LoginResult.LOGIN_PROMPT) {
+                sleep(500);
+                sendChat("/login " + cfg.commonPassword);
+                LogBuffer.get().info("Ожидание компаса после /login");
+                if (!awaitCompassInHotbar(cfg.worldChangeTimeoutMs)) {
+                    LogBuffer.get().warn("Компас не появился после /login -> пропуск");
+                    return;
+                }
+            } else {
+                LogBuffer.get().info("Компас уже в хотбаре — /login пропущен");
+            }
+        } catch (CompassReadySignal signal) {
+            LogBuffer.get().info("⚡ Компас обнаружен в хотбаре во время шага " + currentStep + " -> переход на шаг 7");
+        } finally {
+            compassShortcutArmed = false;
         }
 
         setStep(7, "Взять компас и ПКМ");
