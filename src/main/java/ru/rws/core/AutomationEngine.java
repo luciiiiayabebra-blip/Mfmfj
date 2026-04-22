@@ -1,0 +1,537 @@
+package ru.rws.core;
+
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.ConnectScreen;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.TitleScreen;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.network.ServerInfo;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.slot.Slot;
+import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.Hand;
+import ru.rws.config.AccountEntry;
+import ru.rws.config.RwsConfig;
+import ru.rws.events.ChatListener;
+import ru.rws.events.WorldChangeListener;
+import ru.rws.net.ProxyConnector;
+import ru.rws.net.SessionSwitcher;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public final class AutomationEngine {
+
+    private static final AutomationEngine INSTANCE = new AutomationEngine();
+
+    private volatile AutomationState state = AutomationState.IDLE;
+    private volatile int currentAccountIndex = -1;
+    private volatile String currentAccountName = "";
+    private volatile int currentStep = 0;
+    private volatile String currentStepDesc = "";
+
+    private final Object pauseLock = new Object();
+    private volatile boolean paused = false;
+
+    private Thread worker;
+
+    private AutomationEngine() {
+    }
+
+    public static AutomationEngine get() {
+        return INSTANCE;
+    }
+
+    public AutomationState getState() { return state; }
+    public int getCurrentAccountIndex() { return currentAccountIndex; }
+    public String getCurrentAccountName() { return currentAccountName; }
+    public int getCurrentStep() { return currentStep; }
+    public String getCurrentStepDesc() { return currentStepDesc; }
+
+    public synchronized void toggle() {
+        if (state == AutomationState.IDLE || state == AutomationState.ERROR) {
+            start();
+        } else if (state == AutomationState.RUNNING) {
+            pause();
+        } else if (state == AutomationState.PAUSED) {
+            resume();
+        }
+    }
+
+    public synchronized void start() {
+        if (worker != null && worker.isAlive()) {
+            return;
+        }
+        paused = false;
+        state = AutomationState.RUNNING;
+        LogBuffer.get().info("Запуск автоматизации");
+        worker = new Thread(this::run, "RWS-Worker");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    public synchronized void pause() {
+        paused = true;
+        state = AutomationState.PAUSED;
+        LogBuffer.get().info("Пауза");
+    }
+
+    public synchronized void resume() {
+        paused = false;
+        state = AutomationState.RUNNING;
+        LogBuffer.get().info("Возобновление");
+        synchronized (pauseLock) {
+            pauseLock.notifyAll();
+        }
+    }
+
+    private void checkPause() throws InterruptedException {
+        synchronized (pauseLock) {
+            while (paused) {
+                pauseLock.wait();
+            }
+        }
+    }
+
+    private void run() {
+        try {
+            RwsConfig cfg = RwsConfig.get();
+            for (int i = 0; i < cfg.accounts.size(); i++) {
+                currentAccountIndex = i;
+                AccountEntry acc = cfg.accounts.get(i);
+                currentAccountName = acc.nickname;
+                LogBuffer.get().info("=== Аккаунт [" + (i + 1) + "/" + cfg.accounts.size() + "]: " + acc.nickname + " ===");
+                try {
+                    processAccount(acc, cfg);
+                } catch (InterruptedException ie) {
+                    throw ie;
+                } catch (Throwable t) {
+                    LogBuffer.get().error("Ошибка на аккаунте " + acc.nickname + ": " + t.getMessage());
+                }
+            }
+            state = AutomationState.IDLE;
+            LogBuffer.get().info("Все аккаунты обработаны. Стоп.");
+        } catch (InterruptedException e) {
+            LogBuffer.get().warn("Поток прерван");
+            state = AutomationState.IDLE;
+        } catch (Throwable t) {
+            LogBuffer.get().error("Фатальная ошибка: " + t.getMessage());
+            state = AutomationState.ERROR;
+        } finally {
+            currentAccountIndex = -1;
+            currentAccountName = "";
+            currentStep = 0;
+            currentStepDesc = "";
+        }
+    }
+
+    private void setStep(int step, String desc) {
+        currentStep = step;
+        currentStepDesc = desc;
+        LogBuffer.get().info("Шаг " + step + ": " + desc);
+    }
+
+    private void processAccount(AccountEntry acc, RwsConfig cfg) throws Exception {
+        setStep(1, "Дисконнект");
+        checkPause();
+        disconnectIfOnline();
+        sleep(1000);
+
+        setStep(2, "Смена ника -> " + acc.nickname);
+        checkPause();
+        SessionSwitcher.changeNickname(acc.nickname);
+
+        setStep(3, "Подключение к " + cfg.serverIp);
+        checkPause();
+        ProxyConnector.setProxy(acc.proxy);
+        connectToServer(cfg.serverIp);
+
+        setStep(4, "Ожидание смены мира");
+        checkPause();
+        if (!awaitWorldChange(cfg.worldChangeTimeoutMs)) {
+            LogBuffer.get().warn("Таймаут ожидания мира -> пропуск");
+            return;
+        }
+
+        setStep(5, "/login <пароль>");
+        checkPause();
+        sleep(800);
+        sendChat("/login " + acc.password);
+
+        setStep(6, "Ожидание смены мира");
+        checkPause();
+        if (!awaitWorldChange(cfg.worldChangeTimeoutMs)) {
+            LogBuffer.get().warn("Таймаут после /login -> пропуск");
+            return;
+        }
+
+        setStep(7, "Взять компас и ПКМ");
+        checkPause();
+        sleep(1500);
+        if (!useCompass()) {
+            LogBuffer.get().warn("Компас не найден -> пропуск");
+            return;
+        }
+
+        setStep(8, "Клик по печке в GUI");
+        checkPause();
+        if (!awaitHandledScreen(5000)) {
+            LogBuffer.get().warn("GUI после компаса не открылся");
+            return;
+        }
+        if (!clickFirstItem(Items.FURNACE)) {
+            LogBuffer.get().warn("Печка не найдена");
+            return;
+        }
+
+        setStep(9, "Пауза 1 сек");
+        sleep(1000);
+
+        setStep(10, "Клик по 3-й голове");
+        checkPause();
+        if (!awaitHandledScreen(5000)) {
+            LogBuffer.get().warn("GUI с головами не открылся");
+            return;
+        }
+        if (!clickNthItem(Items.PLAYER_HEAD, 3)) {
+            LogBuffer.get().warn("3-я голова не найдена");
+            return;
+        }
+
+        setStep(11, "Ожидание смены мира");
+        checkPause();
+        if (!awaitWorldChange(cfg.worldChangeTimeoutMs)) {
+            LogBuffer.get().warn("Таймаут после головы -> пропуск");
+            return;
+        }
+
+        setStep(12, "Команда: " + cfg.commonCommand);
+        checkPause();
+        sleep(1500);
+        if (cfg.commonCommand != null && !cfg.commonCommand.isEmpty()) {
+            sendChat(cfg.commonCommand);
+        }
+
+        setStep(13, "Пауза 5 сек");
+        sleep(5000);
+
+        setStep(14, "/sellfish");
+        checkPause();
+        sendChat("/sellfish");
+
+        setStep(15, "Пауза 1 сек");
+        sleep(1000);
+
+        setStep(16, "Клики по пороху до лимита");
+        checkPause();
+        clickGunpowderUntilLimit(cfg);
+
+        setStep(17, "Пауза 1 сек");
+        sleep(1000);
+
+        setStep(18, "Закрыть GUI (E)");
+        checkPause();
+        closeHandledScreen();
+        sleep(500);
+
+        setStep(19, "/balance");
+        checkPause();
+        long amount = queryBalance(cfg);
+
+        setStep(20, "Пауза 1 сек (обработка баланса)");
+        sleep(1000);
+
+        if (amount <= 0) {
+            LogBuffer.get().warn("Баланс не получен или 0 -> пропуск /pay");
+        } else {
+            setStep(21, "/pay " + cfg.payReceiver + " " + amount);
+            checkPause();
+            if (cfg.payReceiver != null && !cfg.payReceiver.isEmpty()) {
+                sendChat("/pay " + cfg.payReceiver + " " + amount);
+                sleep(1500);
+            }
+        }
+
+        setStep(22, "Дисконнект и переход к следующему");
+        checkPause();
+        disconnectIfOnline();
+        sleep(1500);
+    }
+
+    private void sleep(long ms) throws InterruptedException {
+        long end = System.currentTimeMillis() + ms;
+        while (System.currentTimeMillis() < end) {
+            checkPause();
+            Thread.sleep(Math.min(100, end - System.currentTimeMillis()));
+        }
+    }
+
+    private void runOnClient(Runnable r) {
+        MinecraftClient.getInstance().execute(r);
+    }
+
+    private <T> T callOnClient(java.util.concurrent.Callable<T> c) throws Exception {
+        CompletableFuture<T> f = new CompletableFuture<>();
+        runOnClient(() -> {
+            try {
+                f.complete(c.call());
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        try {
+            return f.get(10, TimeUnit.SECONDS);
+        } catch (TimeoutException te) {
+            throw new RuntimeException("client task timeout");
+        }
+    }
+
+    private void disconnectIfOnline() {
+        runOnClient(() -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.world != null) {
+                mc.world.disconnect();
+                mc.disconnect();
+                mc.openScreen(new TitleScreen());
+            }
+        });
+    }
+
+    private void connectToServer(String ip) {
+        runOnClient(() -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            ServerInfo info = new ServerInfo("RWS", ip, false);
+            try {
+                mc.openScreen(new ConnectScreen(new TitleScreen(), mc, info));
+            } catch (Throwable t) {
+                LogBuffer.get().error("Ошибка подключения: " + t.getMessage());
+            }
+        });
+    }
+
+    private boolean awaitWorldChange(int timeoutMs) throws InterruptedException {
+        final CompletableFuture<Void> fut = new CompletableFuture<>();
+        WorldChangeListener.Listener listener = () -> fut.complete(null);
+        WorldChangeListener.register(listener);
+        try {
+            long end = System.currentTimeMillis() + timeoutMs;
+            while (System.currentTimeMillis() < end) {
+                checkPause();
+                if (fut.isDone()) {
+                    return true;
+                }
+                try {
+                    fut.get(200, TimeUnit.MILLISECONDS);
+                    return true;
+                } catch (TimeoutException ignored) {
+                } catch (Exception e) {
+                    return false;
+                }
+            }
+            return false;
+        } finally {
+            WorldChangeListener.unregister(listener);
+        }
+    }
+
+    private boolean awaitHandledScreen(int timeoutMs) throws InterruptedException {
+        long end = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < end) {
+            checkPause();
+            Screen s = MinecraftClient.getInstance().currentScreen;
+            if (s instanceof HandledScreen) {
+                Thread.sleep(250);
+                return true;
+            }
+            Thread.sleep(100);
+        }
+        return false;
+    }
+
+    private boolean useCompass() throws Exception {
+        return callOnClient(() -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            ClientPlayerEntity p = mc.player;
+            if (p == null || mc.interactionManager == null) {
+                return false;
+            }
+            int hotbarIdx = -1;
+            int invSlotId = -1;
+            for (int i = 0; i < 9; i++) {
+                if (p.inventory.getStack(i).getItem() == Items.COMPASS) {
+                    hotbarIdx = i;
+                    break;
+                }
+            }
+            if (hotbarIdx < 0) {
+                for (int i = 9; i < 36; i++) {
+                    if (p.inventory.getStack(i).getItem() == Items.COMPASS) {
+                        invSlotId = i;
+                        break;
+                    }
+                }
+                if (invSlotId < 0) {
+                    return false;
+                }
+                int targetHotbar = p.inventory.selectedSlot;
+                int invSlotInContainer = invSlotId < 9 ? 36 + invSlotId : invSlotId;
+                mc.interactionManager.clickSlot(
+                        p.playerScreenHandler.syncId,
+                        invSlotInContainer,
+                        targetHotbar,
+                        SlotActionType.SWAP,
+                        p);
+                hotbarIdx = targetHotbar;
+            }
+            p.inventory.selectedSlot = hotbarIdx;
+            mc.interactionManager.interactItem(p, mc.world, Hand.MAIN_HAND);
+            return true;
+        });
+    }
+
+    private boolean clickFirstItem(net.minecraft.item.Item item) throws Exception {
+        return clickNthItem(item, 1);
+    }
+
+    private boolean clickNthItem(net.minecraft.item.Item item, int n) throws Exception {
+        return callOnClient(() -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            ClientPlayerEntity p = mc.player;
+            if (p == null || mc.interactionManager == null) {
+                return false;
+            }
+            Screen s = mc.currentScreen;
+            if (!(s instanceof HandledScreen)) {
+                return false;
+            }
+            HandledScreen<?> hs = (HandledScreen<?>) s;
+            ScreenHandler handler = hs.getScreenHandler();
+            int found = 0;
+            int containerSize = getContainerInventorySize(handler);
+            for (int i = 0; i < containerSize; i++) {
+                Slot slot = handler.slots.get(i);
+                ItemStack st = slot.getStack();
+                if (!st.isEmpty() && st.getItem() == item) {
+                    found++;
+                    if (found == n) {
+                        mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, p);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        });
+    }
+
+    private static int getContainerInventorySize(ScreenHandler handler) {
+        return handler.slots.size() - 36;
+    }
+
+    private void clickGunpowderUntilLimit(RwsConfig cfg) throws Exception {
+        Pattern limitPattern = Pattern.compile(cfg.limitTriggerRegex);
+        final AtomicReference<Boolean> limitReached = new AtomicReference<>(false);
+        Consumer<String> chatL = msg -> {
+            if (limitPattern.matcher(msg).find()) {
+                limitReached.set(true);
+            }
+        };
+        ChatListener.register(chatL);
+        try {
+            int clicks = 0;
+            while (clicks < cfg.maxGunpowderClicks && !limitReached.get()) {
+                checkPause();
+                Boolean clicked = callOnClient(() -> {
+                    MinecraftClient mc = MinecraftClient.getInstance();
+                    ClientPlayerEntity p = mc.player;
+                    if (p == null || mc.interactionManager == null) {
+                        return false;
+                    }
+                    Screen s = mc.currentScreen;
+                    if (!(s instanceof HandledScreen)) {
+                        return false;
+                    }
+                    HandledScreen<?> hs = (HandledScreen<?>) s;
+                    ScreenHandler handler = hs.getScreenHandler();
+                    int containerSize = getContainerInventorySize(handler);
+                    for (int i = 0; i < containerSize; i++) {
+                        Slot slot = handler.slots.get(i);
+                        ItemStack st = slot.getStack();
+                        if (!st.isEmpty() && st.getItem() == Items.GUNPOWDER) {
+                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, p);
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                if (Boolean.TRUE.equals(clicked)) {
+                    clicks++;
+                }
+                Thread.sleep(80);
+            }
+            LogBuffer.get().info("Порох кликов: " + clicks + (limitReached.get() ? " (лимит сервера)" : " (исчерпан maxGunpowderClicks)"));
+        } finally {
+            ChatListener.unregister(chatL);
+        }
+    }
+
+    private void closeHandledScreen() {
+        runOnClient(() -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.player != null) {
+                mc.player.closeHandledScreen();
+            }
+        });
+    }
+
+    private long queryBalance(RwsConfig cfg) throws Exception {
+        Pattern balancePattern = Pattern.compile(cfg.balanceRegex);
+        final AtomicReference<Long> result = new AtomicReference<>(-1L);
+        final CompletableFuture<Long> fut = new CompletableFuture<>();
+        Consumer<String> chatL = msg -> {
+            Matcher m = balancePattern.matcher(msg);
+            if (m.find()) {
+                try {
+                    String raw = m.group(1).replaceAll("\\s+", "").replace(',', '.');
+                    double val = Double.parseDouble(raw);
+                    long amount = (long) Math.floor(val);
+                    result.set(amount);
+                    fut.complete(amount);
+                } catch (Throwable ignored) {
+                }
+            }
+        };
+        ChatListener.register(chatL);
+        try {
+            sendChat("/balance");
+            try {
+                fut.get(3000, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException te) {
+                LogBuffer.get().warn("Баланс не пришёл в чат за 3сек");
+                return -1L;
+            } catch (Exception ignored) {
+            }
+            return result.get();
+        } finally {
+            ChatListener.unregister(chatL);
+        }
+    }
+
+    public void sendChat(String msg) {
+        runOnClient(() -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.player != null) {
+                mc.player.sendChatMessage(msg);
+                LogBuffer.get().info("> " + msg);
+            }
+        });
+    }
+
+}
