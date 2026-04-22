@@ -337,6 +337,8 @@ public final class AutomationEngine {
     private enum LoginResult { LOGIN_PROMPT, COMPASS_ALREADY, TIMEOUT }
 
     private LoginResult awaitLoginOrCompass(String regex, int timeoutMs) throws InterruptedException {
+        if (hasCompassInHotbar()) return LoginResult.COMPASS_ALREADY;
+
         Pattern tmp;
         try {
             tmp = Pattern.compile(regex);
@@ -356,27 +358,32 @@ public final class AutomationEngine {
             long end = System.currentTimeMillis() + timeoutMs;
             while (System.currentTimeMillis() < end) {
                 checkPause();
+                if (hasCompassInHotbar()) return LoginResult.COMPASS_ALREADY;
                 if (loginFut.isDone()) return LoginResult.LOGIN_PROMPT;
-                try {
-                    Boolean has = callOnClient(() -> {
-                        MinecraftClient mc = MinecraftClient.getInstance();
-                        ClientPlayerEntity pl = mc.player;
-                        if (pl == null) return false;
-                        for (int i = 0; i < 9; i++) {
-                            if (pl.inventory.getStack(i).getItem() == Items.COMPASS) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    });
-                    if (Boolean.TRUE.equals(has)) return LoginResult.COMPASS_ALREADY;
-                } catch (Exception ignored) {
-                }
-                Thread.sleep(250);
+                Thread.sleep(100);
             }
             return LoginResult.TIMEOUT;
         } finally {
             ChatListener.unregister(listener);
+        }
+    }
+
+    private boolean hasCompassInHotbar() {
+        try {
+            Boolean has = callOnClient(() -> {
+                MinecraftClient mc = MinecraftClient.getInstance();
+                ClientPlayerEntity pl = mc.player;
+                if (pl == null) return false;
+                for (int i = 0; i < 9; i++) {
+                    if (pl.inventory.getStack(i).getItem() == Items.COMPASS) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            return Boolean.TRUE.equals(has);
+        } catch (Exception ignored) {
+            return false;
         }
     }
 
@@ -418,22 +425,8 @@ public final class AutomationEngine {
         long end = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < end) {
             checkPause();
-            try {
-                Boolean has = callOnClient(() -> {
-                    MinecraftClient mc = MinecraftClient.getInstance();
-                    ClientPlayerEntity p = mc.player;
-                    if (p == null) return false;
-                    for (int i = 0; i < 9; i++) {
-                        if (p.inventory.getStack(i).getItem() == Items.COMPASS) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
-                if (Boolean.TRUE.equals(has)) return true;
-            } catch (Exception ignored) {
-            }
-            Thread.sleep(250);
+            if (hasCompassInHotbar()) return true;
+            Thread.sleep(100);
         }
         return false;
     }
