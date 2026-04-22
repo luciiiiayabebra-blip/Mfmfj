@@ -154,21 +154,27 @@ public final class AutomationEngine {
         ProxyConnector.setProxy(acc.proxy);
         connectToServer(cfg.serverIp);
 
-        setStep(5, "Ожидание запроса /login в чате");
+        setStep(5, "Ожидание /login или компаса в хотбаре");
         checkPause();
-        if (!awaitChatMatch(cfg.loginPromptRegex, cfg.worldChangeTimeoutMs)) {
-            LogBuffer.get().warn("Запрос /login не пришёл -> пропуск");
+        LoginResult lr = awaitLoginOrCompass(cfg.loginPromptRegex, cfg.worldChangeTimeoutMs);
+        if (lr == LoginResult.TIMEOUT) {
+            LogBuffer.get().warn("Нет ни запроса /login, ни компаса -> пропуск");
             return;
         }
-        sleep(500);
-        sendChat("/login " + cfg.commonPassword);
+        if (lr == LoginResult.LOGIN_PROMPT) {
+            sleep(500);
+            sendChat("/login " + cfg.commonPassword);
+            LogBuffer.get().info("Ожидание компаса после /login");
+            if (!awaitCompassInHotbar(cfg.worldChangeTimeoutMs)) {
+                LogBuffer.get().warn("Компас не появился после /login -> пропуск");
+                return;
+            }
+        } else {
+            LogBuffer.get().info("Компас уже в хотбаре — /login пропущен");
+        }
 
-        setStep(7, "Ожидание компаса в хотбаре");
+        setStep(7, "Взять компас и ПКМ");
         checkPause();
-        if (!awaitCompassInHotbar(cfg.worldChangeTimeoutMs)) {
-            LogBuffer.get().warn("Компас не появился в хотбаре -> пропуск");
-            return;
-        }
         if (!useCompass()) {
             LogBuffer.get().warn("Не удалось использовать компас -> пропуск");
             return;
@@ -328,6 +334,52 @@ public final class AutomationEngine {
         }
     }
 
+    private enum LoginResult { LOGIN_PROMPT, COMPASS_ALREADY, TIMEOUT }
+
+    private LoginResult awaitLoginOrCompass(String regex, int timeoutMs) throws InterruptedException {
+        Pattern tmp;
+        try {
+            tmp = Pattern.compile(regex);
+        } catch (Throwable t) {
+            LogBuffer.get().error("Неверный regex /login: " + regex);
+            tmp = null;
+        }
+        final Pattern pattern = tmp;
+        final CompletableFuture<Void> loginFut = new CompletableFuture<>();
+        Consumer<String> listener = msg -> {
+            if (pattern != null && pattern.matcher(msg).find()) {
+                loginFut.complete(null);
+            }
+        };
+        ChatListener.register(listener);
+        try {
+            long end = System.currentTimeMillis() + timeoutMs;
+            while (System.currentTimeMillis() < end) {
+                checkPause();
+                if (loginFut.isDone()) return LoginResult.LOGIN_PROMPT;
+                try {
+                    Boolean has = callOnClient(() -> {
+                        MinecraftClient mc = MinecraftClient.getInstance();
+                        ClientPlayerEntity pl = mc.player;
+                        if (pl == null) return false;
+                        for (int i = 0; i < 9; i++) {
+                            if (pl.inventory.getStack(i).getItem() == Items.COMPASS) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                    if (Boolean.TRUE.equals(has)) return LoginResult.COMPASS_ALREADY;
+                } catch (Exception ignored) {
+                }
+                Thread.sleep(250);
+            }
+            return LoginResult.TIMEOUT;
+        } finally {
+            ChatListener.unregister(listener);
+        }
+    }
+
     private boolean awaitChatMatch(String regex, int timeoutMs) throws InterruptedException {
         final Pattern p;
         try {
@@ -392,9 +444,14 @@ public final class AutomationEngine {
         WorldChangeListener.register(listener);
         try {
             long end = System.currentTimeMillis() + timeoutMs;
-            while (System.currentTimeMillis() < end && !fut.isDone()) {
+            int attempts = 0;
+            int noGuiStreak = 0;
+            final int maxAttempts = 40;
+            final int maxNoGuiStreak = 15;
+            while (System.currentTimeMillis() < end && !fut.isDone()
+                    && attempts < maxAttempts && noGuiStreak < maxNoGuiStreak) {
                 checkPause();
-                callOnClient(() -> {
+                Boolean ok = callOnClient(() -> {
                     MinecraftClient mc = MinecraftClient.getInstance();
                     ClientPlayerEntity p = mc.player;
                     if (p == null || mc.interactionManager == null) return false;
@@ -406,6 +463,12 @@ public final class AutomationEngine {
                     mc.interactionManager.clickSlot(handler.syncId, slotId, 0, SlotActionType.PICKUP, p);
                     return true;
                 });
+                if (Boolean.TRUE.equals(ok)) {
+                    attempts++;
+                    noGuiStreak = 0;
+                } else {
+                    noGuiStreak++;
+                }
                 Thread.sleep(400);
             }
             return fut.isDone();
@@ -518,7 +581,9 @@ public final class AutomationEngine {
         ChatListener.register(chatL);
         try {
             int clicks = 0;
-            while (clicks < cfg.maxGunpowderClicks && !limitReached.get()) {
+            int emptyAttempts = 0;
+            final int maxEmptyAttempts = 50;
+            while (clicks < cfg.maxGunpowderClicks && !limitReached.get() && emptyAttempts < maxEmptyAttempts) {
                 checkPause();
                 Boolean clicked = callOnClient(() -> {
                     MinecraftClient mc = MinecraftClient.getInstance();
@@ -545,10 +610,17 @@ public final class AutomationEngine {
                 });
                 if (Boolean.TRUE.equals(clicked)) {
                     clicks++;
+                    emptyAttempts = 0;
+                } else {
+                    emptyAttempts++;
                 }
                 Thread.sleep(80);
             }
-            LogBuffer.get().info("Порох кликов: " + clicks + (limitReached.get() ? " (лимит сервера)" : " (исчерпан maxGunpowderClicks)"));
+            String reason;
+            if (limitReached.get()) reason = " (лимит сервера)";
+            else if (emptyAttempts >= maxEmptyAttempts) reason = " (порох не найден в GUI)";
+            else reason = " (исчерпан maxGunpowderClicks)";
+            LogBuffer.get().info("Порох кликов: " + clicks + reason);
         } finally {
             ChatListener.unregister(chatL);
         }

@@ -6,26 +6,25 @@ import io.netty.handler.proxy.Socks5ProxyHandler;
 import ru.rws.config.ProxyEntry;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class ProxyConnector {
 
-    private static final ThreadLocal<ProxyEntry> CURRENT = new ThreadLocal<>();
+    private static final AtomicReference<ProxyEntry> PENDING = new AtomicReference<>(null);
 
     private ProxyConnector() {
     }
 
     public static void setProxy(ProxyEntry entry) {
         if (entry == null || !entry.enabled || entry.host == null || entry.host.isEmpty()) {
-            CURRENT.remove();
+            PENDING.set(null);
         } else {
-            CURRENT.set(entry);
+            PENDING.set(entry);
         }
     }
 
     public static ProxyEntry consumeProxy() {
-        ProxyEntry e = CURRENT.get();
-        CURRENT.remove();
-        return e;
+        return PENDING.getAndSet(null);
     }
 
     public static void applyToChannel(Channel channel, ProxyEntry entry) {
