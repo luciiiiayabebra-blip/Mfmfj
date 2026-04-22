@@ -9,12 +9,13 @@
   "rws.config.category.status": "Status",
 
   "rws.config.general.serverIp": "Server IP",
-  "rws.config.general.tpaTarget": "Nickname for /tpa (step 12)",
+  "rws.config.general.commonPassword": "Common password (for /login)",
+  "rws.config.general.tpaTarget": "Nickname for /tpa",
   "rws.config.general.payReceiver": "/pay receiver",
   "rws.config.general.loginRegex": "Login prompt regex",
   "rws.config.general.limitRegex": "Limit trigger regex",
   "rws.config.general.balanceRegex": "Balance regex",
-  "rws.config.general.mapSlotId": "World map slot ID (step 10)",
+  "rws.config.general.mapSlotId": "World map slot ID",
   "rws.config.general.worldTimeout": "World change timeout (ms)",
   "rws.config.general.maxClicks": "Max gunpowder clicks",
 

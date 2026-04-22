@@ -34,6 +34,9 @@ public final class RwsConfigScreen {
         general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.serverIp"), cfg.serverIp)
                 .setDefaultValue("ru.reallyworld.me")
                 .setSaveConsumer(v -> cfg.serverIp = v).build());
+        general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.commonPassword"), cfg.commonPassword)
+                .setDefaultValue("")
+                .setSaveConsumer(v -> cfg.commonPassword = v).build());
         general.addEntry(eb.startStrField(new TranslatableText("rws.config.general.tpaTarget"), cfg.tpaTarget)
                 .setDefaultValue("")
                 .setSaveConsumer(v -> cfg.tpaTarget = v).build());
@@ -61,7 +64,7 @@ public final class RwsConfigScreen {
 
         ConfigCategory accounts = builder.getOrCreateCategory(new TranslatableText("rws.config.category.accounts"));
         accounts.addEntry(eb.startStrList(new TranslatableText("rws.config.accounts.list"), accountsToLines(cfg))
-                .setTooltip(new LiteralText("Одна строка = один аккаунт.\nФормат: nick|pass|SOCKS5|host|1080|user|pass|true"))
+                .setTooltip(new LiteralText("Одна строка = один аккаунт.\nФормат: nick|SOCKS5|host|port|user|pass|enabled\nПароль общий (см. вкладку \"Общие\")"))
                 .setSaveConsumer(lines -> applyAccounts(cfg, lines))
                 .setExpanded(true)
                 .build());
@@ -93,7 +96,6 @@ public final class RwsConfigScreen {
             ProxyEntry p = a.proxy != null ? a.proxy : new ProxyEntry();
             return String.join("|",
                     safe(a.nickname),
-                    safe(a.password),
                     p.type == null ? "SOCKS5" : p.type.name(),
                     safe(p.host),
                     String.valueOf(p.port),
@@ -111,17 +113,16 @@ public final class RwsConfigScreen {
             AccountEntry a = new AccountEntry();
             a.proxy = new ProxyEntry();
             if (parts.length >= 1) a.nickname = parts[0].trim();
-            if (parts.length >= 2) a.password = parts[1];
-            if (parts.length >= 3) {
-                try { a.proxy.type = ProxyEntry.Type.valueOf(parts[2].trim().toUpperCase()); } catch (Throwable ignored) { a.proxy.type = ProxyEntry.Type.SOCKS5; }
+            if (parts.length >= 2) {
+                try { a.proxy.type = ProxyEntry.Type.valueOf(parts[1].trim().toUpperCase()); } catch (Throwable ignored) { a.proxy.type = ProxyEntry.Type.SOCKS5; }
             }
-            if (parts.length >= 4) a.proxy.host = parts[3].trim();
-            if (parts.length >= 5) {
-                try { a.proxy.port = Integer.parseInt(parts[4].trim()); } catch (Throwable ignored) {}
+            if (parts.length >= 3) a.proxy.host = parts[2].trim();
+            if (parts.length >= 4) {
+                try { a.proxy.port = Integer.parseInt(parts[3].trim()); } catch (Throwable ignored) {}
             }
-            if (parts.length >= 6) a.proxy.username = parts[5];
-            if (parts.length >= 7) a.proxy.password = parts[6];
-            if (parts.length >= 8) a.proxy.enabled = Boolean.parseBoolean(parts[7].trim());
+            if (parts.length >= 5) a.proxy.username = parts[4];
+            if (parts.length >= 6) a.proxy.password = parts[5];
+            if (parts.length >= 7) a.proxy.enabled = Boolean.parseBoolean(parts[6].trim());
             result.add(a);
         }
         cfg.accounts = result;

@@ -15,6 +15,7 @@ public class RwsConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public String serverIp = "ru.reallyworld.me";
+    public String commonPassword = "";
     public String tpaTarget = "";
     public String payReceiver = "";
     public String limitTriggerRegex = "Работы.*Достигнут лимит";

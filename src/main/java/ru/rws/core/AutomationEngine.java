@@ -161,7 +161,7 @@ public final class AutomationEngine {
             return;
         }
         sleep(500);
-        sendChat("/login " + acc.password);
+        sendChat("/login " + cfg.commonPassword);
 
         setStep(7, "Ожидание компаса в хотбаре");
         checkPause();

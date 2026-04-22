@@ -9,12 +9,13 @@
   "rws.config.category.status": "Статус",
 
   "rws.config.general.serverIp": "IP сервера",
-  "rws.config.general.tpaTarget": "Ник для /tpa (шаг 12)",
+  "rws.config.general.commonPassword": "Общий пароль (для /login)",
+  "rws.config.general.tpaTarget": "Ник для /tpa",
   "rws.config.general.payReceiver": "Получатель /pay",
   "rws.config.general.loginRegex": "Regex запроса /login",
   "rws.config.general.limitRegex": "Regex триггера лимита",
   "rws.config.general.balanceRegex": "Regex баланса",
-  "rws.config.general.mapSlotId": "ID слота карты миров (шаг 10)",
+  "rws.config.general.mapSlotId": "ID слота карты миров",
   "rws.config.general.worldTimeout": "Таймаут смены мира (мс)",
   "rws.config.general.maxClicks": "Макс. кликов по пороху",
 
