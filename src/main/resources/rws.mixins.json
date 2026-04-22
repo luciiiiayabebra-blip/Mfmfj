@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "ru.rws.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": [
+    "ChatHudMixin",
+    "ClientConnectionMixin",
+    "ClientPlayNetworkHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

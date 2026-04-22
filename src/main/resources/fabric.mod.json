@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "rws",
+  "version": "${version}",
+  "name": "RWS",
+  "description": "Клиентский мод автоматизации для приватного использования.",
+  "authors": [
+    "rws"
+  ],
+  "license": "ARR",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "ru.rws.RwsMod"
+    ],
+    "modmenu": [
+      "ru.rws.gui.RwsModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "rws.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "fabric": "*",
+    "minecraft": "1.16.x",
+    "java": ">=8",
+    "cloth-config2": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}

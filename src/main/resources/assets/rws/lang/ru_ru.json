@@ -1,0 +1,41 @@
+{
+  "key.categories.rws": "RWS",
+  "key.rws.toggle": "Старт / Пауза автоматизации",
+  "key.rws.config": "Открыть настройки RWS",
+
+  "rws.config.title": "Настройки RWS",
+  "rws.config.category.general": "Общие",
+  "rws.config.category.accounts": "Аккаунты",
+  "rws.config.category.status": "Статус",
+
+  "rws.config.general.serverIp": "IP сервера",
+  "rws.config.general.commonCommand": "Команда (шаг 12)",
+  "rws.config.general.payReceiver": "Получатель /pay",
+  "rws.config.general.limitRegex": "Regex триггера лимита",
+  "rws.config.general.balanceRegex": "Regex баланса",
+  "rws.config.general.worldTimeout": "Таймаут смены мира (мс)",
+  "rws.config.general.maxClicks": "Макс. кликов по пороху",
+
+  "rws.config.accounts.list": "Список аккаунтов",
+  "rws.config.account.nickname": "Никнейм",
+  "rws.config.account.password": "Пароль",
+  "rws.config.account.proxy": "Прокси",
+  "rws.config.proxy.enabled": "Включён",
+  "rws.config.proxy.type": "Тип",
+  "rws.config.proxy.host": "Хост",
+  "rws.config.proxy.port": "Порт",
+  "rws.config.proxy.user": "Логин",
+  "rws.config.proxy.pass": "Пароль",
+
+  "rws.status.state": "Состояние",
+  "rws.status.account": "Текущий аккаунт",
+  "rws.status.step": "Текущий шаг",
+  "rws.status.log": "Журнал (последние 50)",
+  "rws.status.clear": "Очистить лог",
+  "rws.status.copy": "Копировать лог",
+
+  "rws.state.idle": "IDLE",
+  "rws.state.running": "RUNNING",
+  "rws.state.paused": "PAUSED",
+  "rws.state.error": "ERROR"
+}

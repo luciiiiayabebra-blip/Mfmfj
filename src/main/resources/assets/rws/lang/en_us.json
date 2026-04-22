@@ -1,0 +1,41 @@
+{
+  "key.categories.rws": "RWS",
+  "key.rws.toggle": "Start / Pause automation",
+  "key.rws.config": "Open RWS settings",
+
+  "rws.config.title": "RWS Settings",
+  "rws.config.category.general": "General",
+  "rws.config.category.accounts": "Accounts",
+  "rws.config.category.status": "Status",
+
+  "rws.config.general.serverIp": "Server IP",
+  "rws.config.general.commonCommand": "Command (step 12)",
+  "rws.config.general.payReceiver": "/pay receiver",
+  "rws.config.general.limitRegex": "Limit trigger regex",
+  "rws.config.general.balanceRegex": "Balance regex",
+  "rws.config.general.worldTimeout": "World change timeout (ms)",
+  "rws.config.general.maxClicks": "Max gunpowder clicks",
+
+  "rws.config.accounts.list": "Accounts list",
+  "rws.config.account.nickname": "Nickname",
+  "rws.config.account.password": "Password",
+  "rws.config.account.proxy": "Proxy",
+  "rws.config.proxy.enabled": "Enabled",
+  "rws.config.proxy.type": "Type",
+  "rws.config.proxy.host": "Host",
+  "rws.config.proxy.port": "Port",
+  "rws.config.proxy.user": "User",
+  "rws.config.proxy.pass": "Password",
+
+  "rws.status.state": "State",
+  "rws.status.account": "Current account",
+  "rws.status.step": "Current step",
+  "rws.status.log": "Log (last 50)",
+  "rws.status.clear": "Clear log",
+  "rws.status.copy": "Copy log",
+
+  "rws.state.idle": "IDLE",
+  "rws.state.running": "RUNNING",
+  "rws.state.paused": "PAUSED",
+  "rws.state.error": "ERROR"
+}
